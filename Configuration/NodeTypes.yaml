@@ -53,6 +53,7 @@
 
     '_accessroles':
       type: array
+      defaultValue: []
       search:
         elasticSearchMapping:
           type: string
