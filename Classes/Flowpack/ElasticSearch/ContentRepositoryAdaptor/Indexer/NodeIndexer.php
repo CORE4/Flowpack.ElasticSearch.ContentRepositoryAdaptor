@@ -266,24 +266,8 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
             $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null, 'ElasticSearch (CR)');
         };
 
-        $dimensionCombinations = $this->contentDimensionCombinator->getAllAllowedCombinations();
-        $workspaceName = $targetWorkspaceName ?: 'live';
-        $nodeIdentifier = $node->getIdentifier();
-        if ($dimensionCombinations !== []) {
-            foreach ($dimensionCombinations as $combination) {
-                $context = $this->contextFactory->create(['workspaceName' => $workspaceName, 'dimensions' => $combination]);
-                $node = $context->getNodeByIdentifier($nodeIdentifier);
-                if ($node !== null) {
-                    $indexer($node, $targetWorkspaceName);
-                }
-            }
-        } else {
-            $context = $this->contextFactory->create(['workspaceName' => $workspaceName]);
-            $node = $context->getNodeByIdentifier($nodeIdentifier);
-            if ($node !== null) {
-                $indexer($node, $targetWorkspaceName);
-            }
-        }
+        $workspaceName = $targetWorkspaceName ?: $node->getContext()->getWorkspaceName();
+        $indexer($node, $workspaceName);
     }
 
     /**
