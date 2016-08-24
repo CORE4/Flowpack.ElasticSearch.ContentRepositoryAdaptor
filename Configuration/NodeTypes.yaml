@@ -51,16 +51,6 @@
         elasticSearchMapping: '' # deliberately don't map or index this
         indexing: ''
 
-    '_accessroles':
-      type: array
-      defaultValue: []
-      search:
-        elasticSearchMapping:
-          type: string
-          index: not_analyzed
-          include_in_all: false
-        indexing: '${node.accessRoles}'
-
     # we index the node type INCLUDING ALL SUPERTYPES
     '__typeAndSupertypes':
       search:

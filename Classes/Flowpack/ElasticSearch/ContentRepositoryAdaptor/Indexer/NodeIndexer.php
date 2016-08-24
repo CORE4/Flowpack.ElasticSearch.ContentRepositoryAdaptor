@@ -213,6 +213,8 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $documentData['__workspace'] = $targetWorkspaceName;
             }
 
+            $documentData['_accessroles'] = $node->getAccessRoles();
+
             $dimensionCombinations = $node->getContext()->getDimensions();
             if (is_array($dimensionCombinations)) {
                 $documentData['__dimensionCombinations'] = $dimensionCombinations;
