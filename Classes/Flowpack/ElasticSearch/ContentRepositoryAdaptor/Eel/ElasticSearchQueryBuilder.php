@@ -1174,10 +1174,11 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      *
      * @param string $searchWord
      * @param array $fields
+     * @param array $fieldsToHighlight
      * @return QueryBuilderInterface
      * @api
      */
-    public function multiFieldFulltext($searchWord, array $fields)
+    public function multiFieldFulltext($searchWord, array $fields, array $fieldsToHighlight = [])
     {
         $query = [
             'query_string' => [
@@ -1195,7 +1196,19 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         }
 
         // We automatically enable result highlighting when doing fulltext searches. It is up to the user to use this information or not use it.
-        return $this->highlight(150, 2);
+        $fragmentSize = 150;
+        $fragmentCount = 2;
+        $this->highlight($fragmentSize, $fragmentCount);
+        if (count($fieldsToHighlight) > 0) {
+            foreach ($fieldsToHighlight as $fieldName) {
+                $this->request['highlight']['fields'][$fieldName] = [
+                    'fragment_size' => $fragmentSize,
+                    'no_match_size' => $fragmentSize,
+                    'number_of_fragments' => $fragmentCount
+                ];
+            }
+        }
+        return $this;
     }
 
     /**
