@@ -114,7 +114,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      *
      * @var array
      */
-    protected $distances;
+    protected $distances = [];
 
     /**
      * This (internal) array stores, for the last search request, a mapping from Node Identifiers
@@ -1033,6 +1033,14 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
     public function getDistance($nodeIdentifier)
     {
         return isset($this->distances[$nodeIdentifier]) ? $this->distances[$nodeIdentifier] : null;
+    }
+
+    /**
+     * @return array
+     */
+    public function getDistances()
+    {
+        return $this->distances;
     }
 
     /**

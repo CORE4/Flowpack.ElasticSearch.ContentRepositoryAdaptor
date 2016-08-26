@@ -40,6 +40,11 @@ class ElasticSearchQueryResult implements QueryResultInterface, ProtectedContext
     /**
      * @var array
      */
+    protected $distances = [];
+
+    /**
+     * @var array
+     */
     protected $additionalAggregations = [];
 
     /**
@@ -68,6 +73,7 @@ class ElasticSearchQueryResult implements QueryResultInterface, ProtectedContext
             $this->nodes = $this->result['nodes'];
             $this->count = $queryBuilder->getTotalItems();
             $this->aggregations = $queryBuilder->getAggregations();
+            $this->distances = $queryBuilder->getDistances();
             if (isset($this->aggregations['facets'])) {
                 foreach ($this->aggregations['facets'] as $aggregationName => $aggregation) {
                     if (is_array($aggregation)) {
@@ -240,6 +246,27 @@ class ElasticSearchQueryResult implements QueryResultInterface, ProtectedContext
         $this->initialize();
 
         return $this->facets;
+    }
+
+    /**
+     * @return array
+     */
+    public function getDistances()
+    {
+        $this->initialize();
+
+        return $this->distances;
+    }
+
+    /**
+     * @param $nodeIdentifier
+     * @return float|null
+     */
+    public function getDistance($nodeIdentifier)
+    {
+        $this->initialize();
+
+        return isset($this->distances[$nodeIdentifier]) ? $this->distances[$nodeIdentifier] : null;
     }
 
     /**
