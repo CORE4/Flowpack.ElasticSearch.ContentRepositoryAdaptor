@@ -601,7 +601,10 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         ];
         $this->request['aggregations']['facets']['aggregations'][$aggregationName]['filter']['bool']['must'] = [];
 
-        foreach ($this->facetFilters as $facetFilter) {
+        if (empty($protectedAggregations)) {
+            $protectedAggregations[] = $aggregationName;
+        }
+        foreach ($this->facetFilters as $key => $facetFilter) {
             if (!$this->isFacetProtected($facetFilter, $protectedAggregations)) {
                 $aggregationFilters = &$this->request['aggregations']['facets']['aggregations'][$aggregationName]['filter']['bool'];
                 foreach ($facetFilter as $aggregationType => $aggregationBody) {
@@ -626,13 +629,12 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      */
     protected function isFacetProtected(array $facetFilter, array $protectedAggregations) {
         if (isset($facetFilter['must'])) {
-            if (isset($facetFilter['term'])) {
-                $aggregationName = key(reset($facetFilter['term']));
-            } elseif(isset($facetFilter['terms'])) {
-                $aggregationName = key(reset($facetFilter['terms']));
+            if (isset($facetFilter['must']['term'])) {
+                $aggregationName = key($facetFilter['must']['term']);
+            } elseif(isset($facetFilter['must']['terms'])) {
+                $aggregationName = key(reset($facetFilter['must']['terms']));
             }
         }
-
 
         if (isset($aggregationName)) {
             return in_array($aggregationName, $protectedAggregations);
