@@ -451,7 +451,11 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
             $value = $value->getIdentifier();
         }
 
-        return $this->queryFilter('term', [$propertyName => $value], 'must');
+        if (is_array($value)) {
+            return $this->queryFilter('terms', [$propertyName => $value], 'must');
+        } else {
+            return $this->queryFilter('term', [$propertyName => $value], 'must');
+        }
     }
 
     /**
