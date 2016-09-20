@@ -110,6 +110,13 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
     protected $facets = [];
 
     /**
+     * The directory for which facets are protected from what filters
+     *
+     * @var array
+     */
+    protected $protectedFacets = [];
+
+    /**
      * The last request's response's distances
      *
      * @var array
@@ -205,7 +212,8 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         $musts = [];
         foreach ($this->request['query']['filtered']['filter']['bool']['must'] as $index => $must) {
             if (!(isset($must['missing']) && $must['missing']['field'] === '_accessroles') &&
-                !(isset($must['term']) && isset($must['term']['__dimensionCombinationHash']))) {
+                !(isset($must['term']) && isset($must['term']['__dimensionCombinationHash']))
+            ) {
                 $musts[] = $must;
             }
         }
@@ -213,7 +221,6 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
 
         return $this;
     }
-
 
 
     /**
@@ -315,7 +322,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      */
     public function sortGeoDistanceAsc($property, $referenceLatitude, $referenceLongitude, $unit = 'km')
     {
-        $configuration =  [
+        $configuration = [
             '_geo_distance' => [
                 $property => [
                     'lat' => (double)$referenceLatitude,
@@ -444,7 +451,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
             $value = $value->getIdentifier();
         }
 
-        return $this->queryFilter('term', [$propertyName => $value], 'must', [$propertyName]);
+        return $this->queryFilter('term', [$propertyName => $value], 'must');
     }
 
     /**
@@ -474,7 +481,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      */
     public function greaterThan($propertyName, $value)
     {
-        return $this->queryFilter('range', [$propertyName => ['gt' => $value]], 'must', [$propertyName]);
+        return $this->queryFilter('range', [$propertyName => ['gt' => $value]], 'must');
     }
 
     /**
@@ -487,7 +494,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      */
     public function greaterThanOrEqual($propertyName, $value)
     {
-        return $this->queryFilter('range', [$propertyName => ['gte' => $value]], 'must', [$propertyName]);
+        return $this->queryFilter('range', [$propertyName => ['gte' => $value]], 'must');
     }
 
     /**
@@ -500,7 +507,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      */
     public function lessThan($propertyName, $value)
     {
-        return $this->queryFilter('range', [$propertyName => ['lt' => $value]], 'must', [$propertyName]);
+        return $this->queryFilter('range', [$propertyName => ['lt' => $value]], 'must');
     }
 
     /**
@@ -513,7 +520,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      */
     public function lessThanOrEqual($propertyName, $value)
     {
-        return $this->queryFilter('range', [$propertyName => ['lte' => $value]], 'must', [$propertyName]);
+        return $this->queryFilter('range', [$propertyName => ['lte' => $value]], 'must');
     }
 
     /**
@@ -547,6 +554,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
             return $this;
         } else {
             $this->request['query']['filtered']['query']['bool']['must'][] = ['wildcard' => [$property => strtolower($value)]];
+
             return $this;
         }
     }
@@ -577,7 +585,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      * @param string $aggregationType
      * @param string $propertyName
      * @param array $aggregationBody
-     * @param array $protectedAggregations
+     * @param array $protectFromFilters
      * @param string $parentAggregationPath
      * @return $this
      */
@@ -586,7 +594,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         $aggregationType,
         $propertyName,
         array $aggregationBody = [],
-        array $protectedAggregations = [],
+        array $protectFromFilters = [],
         $parentAggregationPath = ''
     ) {
         if (!isset($this->request['aggregations']['facets'])) {
@@ -601,11 +609,13 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         ];
         $this->request['aggregations']['facets']['aggregations'][$aggregationName]['filter']['bool']['must'] = [];
 
-        if (empty($protectedAggregations)) {
-            $protectedAggregations[] = $aggregationName;
+        if (!isset($this->protectedFacets[$aggregationName])) {
+            $this->protectedFacets[$aggregationName] = [$aggregationName];
         }
+        $this->protectedFacets[$aggregationName] = array_merge($this->protectedFacets[$aggregationName], $protectFromFilters);
+
         foreach ($this->facetFilters as $key => $facetFilter) {
-            if (!$this->isFacetProtected($facetFilter, $protectedAggregations)) {
+            if (!$this->isFacetProtectedFromActiveFilter($aggregationName, $facetFilter)) {
                 $aggregationFilters = &$this->request['aggregations']['facets']['aggregations'][$aggregationName]['filter']['bool'];
                 foreach ($facetFilter as $aggregationType => $aggregationBody) {
                     $aggregationFilters[$aggregationType][] = $aggregationBody;
@@ -623,23 +633,35 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
     }
 
     /**
+     * @param string $facetName
      * @param array $facetFilter
-     * @param array $protectedAggregations
      * @return boolean
      */
-    protected function isFacetProtected(array $facetFilter, array $protectedAggregations) {
+    protected function isFacetProtectedFromActiveFilter($facetName, array $facetFilter)
+    {
         if (isset($facetFilter['must'])) {
             if (isset($facetFilter['must']['term'])) {
-                $aggregationName = key($facetFilter['must']['term']);
-            } elseif(isset($facetFilter['must']['terms'])) {
-                $aggregationName = key(reset($facetFilter['must']['terms']));
+                $filterName = key($facetFilter['must']['term']);
+            } elseif (isset($facetFilter['must']['terms'])) {
+                $values = array_keys($facetFilter['must']['terms']);
+                $filterName = reset($values);
             }
         }
-
-        if (isset($aggregationName)) {
-            return in_array($aggregationName, $protectedAggregations);
+        if (isset($filterName)) {
+            return $this->isFacetProtectedFromFilter($facetName, $filterName);
+        } else {
+            return false;
         }
-        return false;
+    }
+
+    /**
+     * @param string $facetName
+     * @param string $filterName
+     * @return boolean
+     */
+    protected function isFacetProtectedFromFilter($facetName, $filterName)
+    {
+        return isset($this->protectedFacets[$facetName]) && in_array($filterName, $this->protectedFacets[$facetName]);
     }
 
     /**
@@ -715,12 +737,11 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      * @param string $filterType
      * @param mixed $filterOptions
      * @param string $clauseType one of must, should, must_not
-     * @param array $protectedAggregations
      * @return ElasticSearchQueryBuilder
      * @throws QueryBuildingException
      * @api
      */
-    public function queryFilter($filterType, $filterOptions, $clauseType = 'must', array $protectedAggregations = [])
+    public function queryFilter($filterType, $filterOptions, $clauseType = 'must')
     {
         if (!in_array($clauseType, array('must', 'should', 'must_not'))) {
             throw new QueryBuildingException('The given clause type "' . $clauseType . '" is not supported. Must be one of "mmust", "should", "must_not".',
@@ -735,7 +756,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         $this->facetFilters[] = $filterArray;
         if (isset($this->request['aggregations']['facets']) && count($this->request['aggregations']['facets']['aggregations']) > 0) {
             foreach ($this->request['aggregations']['facets']['aggregations'] as $aggregationName => &$facetAggregation) {
-                if (!in_array($aggregationName, $protectedAggregations)) {
+                if (!$this->isFacetProtectedFromActiveFilter($aggregationName, $filterArray)) {
                     $facetAggregation['filter']['bool'][$clauseType][] = [
                         $filterType => $filterOptions
                     ];
@@ -808,23 +829,18 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      *
      * @param array $data An associative array of keys as variable names and values as variable values
      * @param string $clauseType one of must, should, must_not
-     * @param array $protectedAggregations
      * @return ElasticSearchQueryBuilder
      * @throws QueryBuildingException
      * @api
      */
-    public function queryFilterMultiple($data, $clauseType = 'must', array $protectedAggregations = [])
+    public function queryFilterMultiple($data, $clauseType = 'must')
     {
         foreach ($data as $key => $value) {
             if ($value !== null) {
-                $protectedFilterAggregations = [];
-                if (in_array($key, $protectedAggregations)) {
-                    $protectedFilterAggregations = [$key];
-                }
                 if (is_array($value)) {
-                    $this->queryFilter('terms', [$key => $value], $clauseType, $protectedFilterAggregations);
+                    $this->queryFilter('terms', [$key => $value], $clauseType);
                 } else {
-                    $this->queryFilter('term', [$key => $value], $clauseType, $protectedFilterAggregations);
+                    $this->queryFilter('term', [$key => $value], $clauseType);
                 }
             }
         }
@@ -1017,6 +1033,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         if (isset($this->result['hits']['total'])) {
             return (int)$this->result['hits']['total'];
         }
+
         return 0;
     }
 
@@ -1218,6 +1235,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
                 ];
             }
         }
+
         return $this;
     }
 
