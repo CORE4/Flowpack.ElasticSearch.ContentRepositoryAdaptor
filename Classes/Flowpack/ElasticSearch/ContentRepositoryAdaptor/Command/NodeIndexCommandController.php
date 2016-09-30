@@ -12,9 +12,14 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Command;
  */
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
-use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\IndexWorkspaceTrait;
+use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\NodeTreeService;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Cli\CommandController;
+use TYPO3\Flow\Persistence\Doctrine\PersistenceManager;
+use TYPO3\TYPO3CR\Domain\Service\Context as ContentContext;
+use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
+use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
+use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
 
 /**
  * Provides CLI features for index handling
@@ -23,8 +28,6 @@ use TYPO3\Flow\Cli\CommandController;
  */
 class NodeIndexCommandController extends CommandController
 {
-    use IndexWorkspaceTrait;
-
     /**
      * @Flow\Inject
      * @var \Flowpack\ElasticSearch\ContentRepositoryAdaptor\Indexer\NodeIndexer
@@ -72,6 +75,30 @@ class NodeIndexCommandController extends CommandController
      * @var \TYPO3\Flow\Configuration\ConfigurationManager
      */
     protected $configurationManager;
+
+    /**
+     * @Flow\Inject
+     * @var NodeTreeService
+     */
+    protected $nodeTreeService;
+
+    /**
+     * @Flow\Inject
+     * @var ContextFactory
+     */
+    protected $contentContextFactory;
+
+    /**
+     * @Flow\Inject
+     * @var NodeIndexingManager
+     */
+    protected $nodeIndexingManager;
+
+    /**
+     * @Flow\Inject
+     * @var PersistenceManager
+     */
+    protected $persistenceManager;
 
     /**
      * @var array
@@ -161,28 +188,50 @@ class NodeIndexCommandController extends CommandController
 
         $count = 0;
 
-        if ($workspace === null && $this->settings['indexAllWorkspaces'] === false) {
-            $workspace = 'live';
-        }
-
-        $callback = function ($workspaceName, $indexedNodes, $dimensions) {
-            if ($dimensions === []) {
-                $this->outputLine('Workspace "' . $workspaceName . '" without dimensions done. (Indexed ' . $indexedNodes . ' nodes)');
-            } else {
-                $this->outputLine('Workspace "' . $workspaceName . '" and dimensions "' . json_encode($dimensions) . '" done. (Indexed ' . $indexedNodes . ' nodes)');
-            }
-        };
-        if ($workspace === null) {
-            foreach ($this->workspaceRepository->findAll() as $workspace) {
-                $count += $this->indexWorkspace($workspace->getName(), $limit, $callback);
-            }
+        $defaultContext = $this->contentContextFactory->create([
+            'dimensions' => [],
+            'targetDimensions' => [],
+            'invisibleContentShown' => true,
+            'removedContentShown' => false,
+            'inaccessibleContentShown' => true
+        ]);
+        if (is_null($workspace)) {
+            $workspaceNames = $this->settings['indexAllWorkspaces'] === false ? ['live'] : null;
         } else {
-            $count += $this->indexWorkspace($workspace, $limit, $callback);
+            $workspaceNames = [$workspace];
         }
+        $indexedNodes = 0;
+        $totalIndexedNodes = 0;
+        $time = time();
+        $totalTime = time();
+        $this->nodeTreeService->traverseTreeInWorkspacesAndDimensionCombinations(
+            $defaultContext->getRootNode(),
+            function(NodeInterface $node) use (&$indexedNodes) {  // traversal
+                $this->nodeIndexingManager->indexNode($node);
+                $indexedNodes++;
+            },
+            function(ContentContext $workspaceContext) { // workspace callback
+            },
+            function(ContentContext $dimensionCombinationContext) use(&$totalIndexedNodes, &$indexedNodes, &$time) { // dimension combination callback
+                if (empty($dimensionCombinationContext->getDimensions())) {
+                    $this->outputLine('Workspace "' . $dimensionCombinationContext->getWorkspaceName() . '" without dimensions done. (Indexed ' . $indexedNodes . ' nodes in ' . (time() - $time) .' seconds)');
+                } else {
+                    $this->outputLine('Workspace "' . $dimensionCombinationContext->getWorkspaceName() . '" and dimensions "' . json_encode($dimensionCombinationContext->getDimensions()) . '" done. (Indexed ' . $indexedNodes . ' nodes in ' . (time() - $time) .' seconds)');
+                }
+                $this->nodeFactory->reset();
+                $dimensionCombinationContext->getFirstLevelNodeCache()->flush();
+                $time = time();
+                $totalIndexedNodes += $indexedNodes;
+                $indexedNodes = 0;
+            },
+            null,
+            $workspaceNames,
+            null
+        );
 
         $this->nodeIndexingManager->flushQueues();
 
-        $this->logger->log('Done. (indexed ' . $count . ' nodes)', LOG_INFO);
+        $this->logger->log('Done. (indexed ' . $totalIndexedNodes . ' nodes in ' . (time() - $totalTime) .' seconds)', LOG_INFO);
         $this->nodeIndexer->getIndex()->refresh();
 
         // TODO: smoke tests
