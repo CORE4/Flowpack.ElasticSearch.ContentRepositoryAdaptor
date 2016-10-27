@@ -419,19 +419,32 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $tupleAsJson .= $itemAsJson . chr(10);
             }
             $content .= $tupleAsJson;
-        }
-
-        if ($content !== '') {
-            $responseAsLines = $this->getIndex()->request('POST', '/_bulk', [], $content)->getOriginalResponse()->getContent();
-            foreach (explode("\n", $responseAsLines) as $responseLine) {
-                $response = json_decode($responseLine);
-                if (!is_object($response) || (isset($response->errors) && $response->errors !== false)) {
-                    $this->logger->log('Indexing Error: ' . $responseLine, LOG_ERR);
-                }
+            if (strlen($content) > 64000000) {
+                $this->sendBulkRequest($content);
+                $content = '';
             }
         }
 
+        if ($content !== '') {
+            $this->sendBulkRequest($content);
+        }
+
         $this->currentBulkRequest = [];
+    }
+
+    /**
+     * @param string $content
+     * @throws \Flowpack\ElasticSearch\Exception
+     */
+    protected function sendBulkRequest($content)
+    {
+        $responseAsLines = $this->getIndex()->request('POST', '/_bulk', [], $content)->getOriginalResponse()->getContent();
+        foreach (explode("\n", $responseAsLines) as $responseLine) {
+            $response = json_decode($responseLine);
+            if (!is_object($response) || (isset($response->errors) && $response->errors !== false)) {
+                $this->logger->log('Indexing Error: ' . $responseLine, LOG_ERR);
+            }
+        }
     }
 
     /**
