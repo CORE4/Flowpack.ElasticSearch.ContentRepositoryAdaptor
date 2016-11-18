@@ -419,7 +419,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $tupleAsJson .= $itemAsJson . chr(10);
             }
             $content .= $tupleAsJson;
-            if (strlen($content) > 64000000) {
+            if (strlen($content) > 10000000) {
                 $this->sendBulkRequest($content);
                 $content = '';
             }
