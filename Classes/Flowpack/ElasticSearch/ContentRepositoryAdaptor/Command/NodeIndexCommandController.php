@@ -13,6 +13,8 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Command;
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\NodeTreeService;
+use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Service\GraphService;
+use Nezaniel\Arboretum\Domain\Model\Node;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Cli\CommandController;
 use TYPO3\Flow\Persistence\Doctrine\PersistenceManager;
@@ -81,6 +83,12 @@ class NodeIndexCommandController extends CommandController
      * @var NodeTreeService
      */
     protected $nodeTreeService;
+
+    /**
+     * @Flow\Inject
+     * @var GraphService
+     */
+    protected $graphService;
 
     /**
      * @Flow\Inject
@@ -186,48 +194,29 @@ class NodeIndexCommandController extends CommandController
 
         $this->logger->log(sprintf('Indexing %snodes ... ', ($limit !== null ? 'the first ' . $limit . ' ' : '')), LOG_INFO);
 
-        $count = 0;
-
-        $defaultContext = $this->contentContextFactory->create([
-            'dimensions' => [],
-            'targetDimensions' => [],
-            'invisibleContentShown' => true,
-            'removedContentShown' => false,
-            'inaccessibleContentShown' => true
-        ]);
-        if (is_null($workspace)) {
-            $workspaceNames = $this->settings['indexAllWorkspaces'] === false ? ['live'] : null;
-        } else {
-            $workspaceNames = [$workspace];
-        }
+        $totalTime = time();
         $indexedNodes = 0;
         $totalIndexedNodes = 0;
+
+        $this->outputLine('Initializing content graph...');
+        $graph = $this->graphService->getGraph();
+        $this->outputLine('done');
+
         $time = time();
-        $totalTime = time();
-        $this->nodeTreeService->traverseTreeInWorkspacesAndDimensionCombinations(
-            $defaultContext->getRootNode(),
-            function(NodeInterface $node) use (&$indexedNodes) {  // traversal
+
+        $workspace = $this->workspaceRepository->findByIdentifier('live');
+
+        foreach ($graph->getTrees() as $tree) {
+            $tree->traverse(function(Node $node) use($tree, $workspace, &$indexedNodes) {
+                $node = new \Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Model\Node($node, $tree, $workspace);
                 $this->nodeIndexingManager->indexNode($node);
                 $indexedNodes++;
-            },
-            function(ContentContext $workspaceContext) { // workspace callback
-            },
-            function(ContentContext $dimensionCombinationContext) use(&$totalIndexedNodes, &$indexedNodes, &$time) { // dimension combination callback
-                if (empty($dimensionCombinationContext->getDimensions())) {
-                    $this->outputLine('Workspace "' . $dimensionCombinationContext->getWorkspaceName() . '" without dimensions done. (Indexed ' . $indexedNodes . ' nodes in ' . (time() - $time) .' seconds)');
-                } else {
-                    $this->outputLine('Workspace "' . $dimensionCombinationContext->getWorkspaceName() . '" and dimensions "' . json_encode($dimensionCombinationContext->getDimensions()) . '" done. (Indexed ' . $indexedNodes . ' nodes in ' . (time() - $time) .' seconds)');
-                }
-                $this->nodeFactory->reset();
-                $dimensionCombinationContext->getFirstLevelNodeCache()->flush();
-                $time = time();
-                $totalIndexedNodes += $indexedNodes;
-                $indexedNodes = 0;
-            },
-            null,
-            $workspaceNames,
-            null
-        );
+            });
+            $this->outputLine('Workspace "' . $tree->getIdentityComponents()['workspace'] . '" and dimensions "' . json_encode($tree->getIdentityComponents()['dimensionValues']) . '" done. (Indexed ' . $indexedNodes . ' nodes in ' . (time() - $time) .' seconds)');
+            $time = time();
+            $totalIndexedNodes += $indexedNodes;
+            $indexedNodes = 0;
+        }
 
         $this->nodeIndexingManager->flushQueues();
 
