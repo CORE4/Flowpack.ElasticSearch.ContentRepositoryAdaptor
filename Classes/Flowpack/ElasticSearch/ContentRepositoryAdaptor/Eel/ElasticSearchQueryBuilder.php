@@ -245,31 +245,6 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
     }
 
     /**
-     * @param string $dimensionName
-     * @param array $dimensionValues
-     * @return $this
-     * @throws QueryBuildingException
-     * @api
-     */
-    public function dimension($dimensionName, array $dimensionValues = null)
-    {
-        if (is_null($dimensionValues)) {
-            $dimensionValues = $this->contextNode->getContext()->getDimensions()[$dimensionName];
-        }
-        $excludedDimensionValues = array_values(array_diff(array_keys($this->dimensionPresetSource->getAllPresets()[$dimensionName]['presets']),
-            $dimensionValues));
-
-        return $this->queryFilter('terms', [
-            '__dimensionCombinations.' . $dimensionName => $dimensionValues,
-            'execution' => 'and'
-        ])
-            ->queryFilter('terms', [
-                '__dimensionCombinations.' . $dimensionName => $excludedDimensionValues,
-                'execution' => 'or'
-            ], 'must_not');
-    }
-
-    /**
      * Sort descending by $propertyName
      *
      * @param string $propertyName the property name to sort by
@@ -1291,8 +1266,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         // http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-terms-filter.html
         $this->queryFilter('terms', ['__workspace' => array_unique(['live', $contextNode->getContext()->getWorkspace()->getName()])]);
 
-        // match exact dimension values for each dimension, this works because the indexing flattens the node variants for all dimension preset combinations
-        $dimensionCombinations = $contextNode->getContext()->getDimensions();
+        $dimensionCombinations = $contextNode->getContext()->getTargetDimensions();
         if (is_array($dimensionCombinations)) {
             $this->queryFilter('term', ['__dimensionCombinationHash' => md5(json_encode($dimensionCombinations))]);
         }

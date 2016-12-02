@@ -16,8 +16,11 @@ use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Exception;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
 use Flowpack\ElasticSearch\Domain\Model\Document as ElasticSearchDocument;
 use Flowpack\ElasticSearch\Domain\Model\Index;
+use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Model\Node;
+use Nezaniel\Arboretum\Domain as Arboretum;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
+use TYPO3\TYPO3CR\Domain\Model\NodeType;
 use TYPO3\TYPO3CR\Domain\Service\ContentDimensionCombinator;
 use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
 use TYPO3\TYPO3CR\Domain\Service\NodeTypeManager;
@@ -95,6 +98,17 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     protected $bulkProcessing = false;
 
     /**
+     * @var array
+     */
+    protected $fulltextRootRegistry = [];
+
+    /**
+     * @var array
+     */
+    protected $fulltextRegistry = [];
+
+
+    /**
      * Returns the index name to be used for indexing, with optional indexNamePostfix appended.
      *
      * @return string
@@ -134,7 +148,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     }
 
     /**
-     * index this node, and add it to the current bulk request.
+     * index this node and this node alone
      *
      * @param NodeInterface $node
      * @param string $targetWorkspaceName In case this is triggered during publishing, a workspace name will be passed in
@@ -170,7 +184,8 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
 
             if ($this->bulkProcessing === false) {
                 // Remove document with the same contextPathHash but different NodeType, required after NodeType change
-                $this->logger->log(sprintf('NodeIndexer: Search and remove duplicate document if needed. ID: %s', $contextPath, $node->getNodeType()->getName(), $contextPathHash), LOG_DEBUG, null, 'ElasticSearch (CR)');
+                $this->logger->log(sprintf('NodeIndexer: Search and remove duplicate document if needed. ID: %s', $contextPath, $node->getNodeType()->getName(), $contextPathHash), LOG_DEBUG, null,
+                    'ElasticSearch (CR)');
                 $this->getIndex()->request('DELETE', '/_query', [], json_encode([
                     'query' => [
                         'bool' => [
@@ -265,7 +280,8 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
             }
 
-            $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null, 'ElasticSearch (CR)');
+            $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null,
+                'ElasticSearch (CR)');
         };
 
         $workspaceName = $targetWorkspaceName ?: $node->getContext()->getWorkspaceName();
@@ -273,19 +289,117 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     }
 
     /**
+     * @param NodeInterface|Node $node
+     * @todo add workspace support
+     */
+    public function bulkIndexNode(NodeInterface $node)
+    {
+        $contextPath = $node->getContextPath();
+
+        $contextPathHash = sha1($node->getContextPath());
+        $nodeType = $node->getNodeType();
+
+        $mappingType = $this->getIndex()->findType(NodeTypeMappingBuilder::convertNodeTypeNameToMappingName($nodeType));
+
+
+        $fulltextIndexOfNode = [];
+        $nodePropertiesToBeStoredInIndex = $this->extractPropertiesAndFulltext($node, $fulltextIndexOfNode, function ($propertyName) use ($contextPathHash) {
+            $this->logger->log(sprintf('NodeIndexer (%s) - Property "%s" not indexed because no configuration found.', $contextPathHash, $propertyName), LOG_DEBUG, null, 'ElasticSearch (CR)');
+        });
+
+        $document = new ElasticSearchDocument($mappingType,
+            $nodePropertiesToBeStoredInIndex,
+            /** @todo use the an identifier comprised of tree and node identifiers */
+            $contextPathHash
+        );
+
+        $documentData = $document->getData();
+        $documentData['__workspace'] = $node->getContext()->getWorkspaceName();
+        $documentData['_accessroles'] = $node->getAccessRoles();
+
+        foreach ($node->getContainingTrees() as $tree) {
+            $dimensionValues = $tree->getIdentityComponents()['dimensionValues'];
+            $documentData['__dimensionCombinations'][] = $dimensionValues;
+            $documentData['__dimensionCombinationHash'][] = md5(json_encode($dimensionValues));
+        }
+        if ($this->isFulltextEnabled($node)) {
+            if ($this->isFulltextRoot($node)) {
+                // for fulltext root documents, we need to preserve the "__fulltext" field. That's why we use the
+                // "update" API instead of the "index" API, with a custom script internally; as we
+                // shall not delete the "__fulltext" part of the document if it has any.
+                $this->currentBulkRequest[] = [
+                    [
+                        'update' => [
+                            '_type' => $document->getType()->getName(),
+                            '_id' => $document->getId()
+                        ]
+                    ],
+                    // http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-update.html
+                    [
+                        'script' => '
+                            fulltext = (ctx._source.containsKey("__fulltext") ? ctx._source.__fulltext : new LinkedHashMap());
+                            fulltextParts = (ctx._source.containsKey("__fulltextParts") ? ctx._source.__fulltextParts : new LinkedHashMap());
+                            ctx._source = newData;
+                            ctx._source.__fulltext = fulltext;
+                            ctx._source.__fulltextParts = fulltextParts
+                            ',
+                        'params' => [
+                            'newData' => $documentData
+                        ],
+                        'upsert' => $documentData,
+                        'lang' => 'groovy'
+                    ]
+                ];
+            } else {
+                // non-fulltext-root documents can be indexed as-they-are
+                $this->currentBulkRequest[] = [
+                    [
+                        'index' => [
+                            '_type' => $document->getType()->getName(),
+                            '_id' => $document->getId()
+                        ]
+                    ],
+                    $documentData
+                ];
+            }
+
+            $this->updateFulltext($node, $fulltextIndexOfNode);
+        }
+
+        $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null,
+            'ElasticSearch (CR)');
+    }
+
+    /**
+     * Whether the node has fulltext indexing enabled.
+     *
+     * @param NodeInterface $node
+     * @return bool
+     */
+    protected function isFulltextEnabled(NodeInterface $node)
+    {
+        if (!isset($this->fulltextRegistry[$node->getNodeType()->getName()])) {
+            $this->fulltextRegistry[$node->getNodeType()->getName()] = false;
+            if ($node->getNodeType()->hasConfiguration('search')) {
+                $searchSettingsForNode = $node->getNodeType()->getConfiguration('search');
+                if (isset($searchSettingsForNode['fulltext']['enable']) && $searchSettingsForNode['fulltext']['enable'] === true) {
+                    $this->fulltextRegistry[$node->getNodeType()->getName()] = true;
+                }
+            }
+        }
+
+        return $this->fulltextRegistry[$node->getNodeType()->getName()];
+    }
+
+    /**
      *
      *
      * @param NodeInterface $node
      * @param array $fulltextIndexOfNode
-     * @param string $targetWorkspaceName
      * @return void
      */
-    protected function updateFulltext(NodeInterface $node, array $fulltextIndexOfNode, $targetWorkspaceName = null)
+    protected function updateFulltext(NodeInterface $node, array $fulltextIndexOfNode)
     {
-        if ((($targetWorkspaceName !== null && $targetWorkspaceName !== 'live') || $node->getWorkspace()->getName() !== 'live') || count($fulltextIndexOfNode) === 0) {
-            return;
-        }
-
         $closestFulltextNode = $node;
         while (!$this->isFulltextRoot($closestFulltextNode)) {
             $closestFulltextNode = $closestFulltextNode->getParent();
@@ -297,8 +411,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
             }
         }
 
-        $closestFulltextNodeContextPath = str_replace($closestFulltextNode->getContext()->getWorkspace()->getName(), 'live', $closestFulltextNode->getContextPath());
-        $closestFulltextNodeContextPathHash = sha1($closestFulltextNodeContextPath);
+        $closestFulltextNodeContextPathHash = sha1($closestFulltextNode->getContextPath());
 
         $this->currentBulkRequest[] = [
             [
@@ -357,14 +470,17 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
      */
     protected function isFulltextRoot(NodeInterface $node)
     {
-        if ($node->getNodeType()->hasConfiguration('search')) {
-            $elasticSearchSettingsForNode = $node->getNodeType()->getConfiguration('search');
-            if (isset($elasticSearchSettingsForNode['fulltext']['isRoot']) && $elasticSearchSettingsForNode['fulltext']['isRoot'] === true) {
-                return true;
+        if (!isset($this->fulltextRootRegistry[$node->getNodeType()->getName()])) {
+            $this->fulltextRootRegistry[$node->getNodeType()->getName()] = false;
+            if ($node->getNodeType()->hasConfiguration('search')) {
+                $elasticSearchSettingsForNode = $node->getNodeType()->getConfiguration('search');
+                if (isset($elasticSearchSettingsForNode['fulltext']['isRoot']) && $elasticSearchSettingsForNode['fulltext']['isRoot'] === true) {
+                    $this->fulltextRootRegistry[$node->getNodeType()->getName()] = true;
+                }
             }
         }
 
-        return false;
+        return $this->fulltextRootRegistry[$node->getNodeType()->getName()];
     }
 
     /**

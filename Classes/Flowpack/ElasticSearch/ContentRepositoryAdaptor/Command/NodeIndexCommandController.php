@@ -14,12 +14,11 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Command;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\NodeTreeService;
 use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Service\GraphService;
-use Nezaniel\Arboretum\Domain\Model\Node;
+use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application as ArboretumAdaptor;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Cli\CommandController;
 use TYPO3\Flow\Persistence\Doctrine\PersistenceManager;
-use TYPO3\TYPO3CR\Domain\Service\Context as ContentContext;
-use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
+use TYPO3\TYPO3CR\Domain\Model\NodeData;
 use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
 use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
 
@@ -194,33 +193,33 @@ class NodeIndexCommandController extends CommandController
 
         $this->logger->log(sprintf('Indexing %snodes ... ', ($limit !== null ? 'the first ' . $limit . ' ' : '')), LOG_INFO);
 
-        $totalTime = time();
-        $indexedNodes = 0;
-        $totalIndexedNodes = 0;
-
         $this->outputLine('Initializing content graph...');
-        $graph = $this->graphService->getGraph();
-        $this->outputLine('done');
+        $query = $this->nodeDataRepository->createQuery();
+        $numberOfNodes = $query->matching($query->equals('workspace', 'live'))->count();
+        $this->output->progressStart($numberOfNodes);
+        $graph = $this->graphService->getGraph(function(NodeData $nodeData) {
+            $this->output->progressAdvance();
+        });
+        $this->output->progressFinish();
 
-        $time = time();
-
-        $workspace = $this->workspaceRepository->findByIdentifier('live');
-
-        foreach ($graph->getTrees() as $tree) {
-            $tree->traverse(function(Node $node) use($tree, $workspace, &$indexedNodes) {
-                $node = new \Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Model\Node($node, $tree, $workspace);
-                $this->nodeIndexingManager->indexNode($node);
-                $indexedNodes++;
-            });
-            $this->outputLine('Workspace "' . $tree->getIdentityComponents()['workspace'] . '" and dimensions "' . json_encode($tree->getIdentityComponents()['dimensionValues']) . '" done. (Indexed ' . $indexedNodes . ' nodes in ' . (time() - $time) .' seconds)');
-            $time = time();
-            $totalIndexedNodes += $indexedNodes;
-            $indexedNodes = 0;
+        $time = microtime(true);
+        $this->outputLine('Indexing content graph...');
+        $this->output->progressStart($numberOfNodes);
+        $indexedSinceLastFlush = 0;
+        foreach ($graph->getNodes() as $node) {
+            $nodeAdaptor = new ArboretumAdaptor\Model\Node($node);
+            $this->nodeIndexer->bulkIndexNode($nodeAdaptor);
+            $indexedSinceLastFlush++;
+            if ($indexedSinceLastFlush > 1000) {
+                $this->nodeIndexer->flush();
+                $indexedSinceLastFlush = 0;
+            }
+            $this->output->progressAdvance();
         }
+        $this->nodeIndexer->flush();
+        $this->output->progressFinish();
 
-        $this->nodeIndexingManager->flushQueues();
-
-        $this->logger->log('Done. (indexed ' . $totalIndexedNodes . ' nodes in ' . (time() - $totalTime) .' seconds)', LOG_INFO);
+        $this->logger->log('Done. (indexed ' . $numberOfNodes . ' nodes in ' . (round((microtime(true) - $time) * 1000)) .' milliseconds)', LOG_INFO);
         $this->nodeIndexer->getIndex()->refresh();
 
         // TODO: smoke tests
