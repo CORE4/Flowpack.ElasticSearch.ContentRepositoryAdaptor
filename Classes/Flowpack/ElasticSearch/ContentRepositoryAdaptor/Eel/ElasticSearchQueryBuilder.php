@@ -12,8 +12,11 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Eel;
  */
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Exception\QueryBuildingException;
+use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Service\TreeService;
+use Nezaniel\Arboretum\Utility\TreeUtility;
 use TYPO3\Eel\ProtectedContextAwareInterface;
 use TYPO3\Flow\Annotations as Flow;
+use TYPO3\Flow\Security\Context as SecurityContext;
 use TYPO3\Flow\Utility\Arrays;
 use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
 use TYPO3\TYPO3CR\Domain\Service\ContentDimensionPresetSourceInterface;
@@ -55,6 +58,18 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      * @var ContentDimensionPresetSourceInterface
      */
     protected $dimensionPresetSource;
+
+    /**
+     * @Flow\Inject
+     * @var SecurityContext
+     */
+    protected $securityContext;
+
+    /**
+     * @Flow\Inject
+     * @var TreeService
+     */
+    protected $treeService;
 
     /**
      * @var boolean
@@ -165,37 +180,9 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
                 'filter' => [
                     // http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-bool-filter.html
                     'bool' => [
-                        'must' => [
-                            // @todo adjust to current roles
-                            [
-                                'missing' => [
-                                    'field' => '_accessroles'
-                                ]
-                            ]
-                        ],
+                        'must' => [],
                         'should' => [],
-                        'must_not' => [
-                            // Filter out all hidden elements
-                            [
-                                'term' => ['_hidden' => true]
-                            ],
-                            // if now < hiddenBeforeDateTime: HIDE
-                            // -> hiddenBeforeDateTime > now
-                            [
-                                'range' => [
-                                    '_hiddenBeforeDateTime' => [
-                                        'gt' => 'now'
-                                    ]
-                                ]
-                            ],
-                            [
-                                'range' => [
-                                    '_hiddenAfterDateTime' => [
-                                        'lt' => 'now'
-                                    ]
-                                ]
-                            ],
-                        ],
+                        'must_not' => [],
                     ]
                 ]
             ]
@@ -1262,14 +1249,62 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         // http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-term-filter.html
         $this->queryFilter('term', ['__parentPath' => $contextNode->getPath()]);
 
-        //
-        // http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-terms-filter.html
-        $this->queryFilter('terms', ['__workspace' => array_unique(['live', $contextNode->getContext()->getWorkspace()->getName()])]);
+        $treeIdentity = $this->treeService->translateContentContextToTreeIdentity($contextNode->getContext());
 
-        $dimensionCombinations = $contextNode->getContext()->getTargetDimensions();
-        if (is_array($dimensionCombinations)) {
-            $this->queryFilter('term', ['__dimensionCombinationHash' => md5(json_encode($dimensionCombinations))]);
+        $edgeFilter = [
+            'path' => '__edges',
+            'query' => [
+                'bool' => [
+                    'must' => [
+                        [
+                            'match' => [
+                                '__edges.tree' => TreeUtility::hashIdentityComponents($treeIdentity),
+                            ],
+                        ],
+                    ],
+                    'should' => [],
+                    'must_not' => []
+                ]
+            ]
+        ];
+
+        if (!$contextNode->getContext()->isInvisibleContentShown()) {
+            $edgeFilter['query']['bool']['must'][] = [
+                'match' => [
+                    '__edges.hidden' => false,
+                ],
+            ];
+            $edgeFilter['query']['bool']['must_not'][] = [
+                'range' => [
+                    '__edges.hiddenBeforeDateTime' => [
+                        'gt' => 'now'
+                    ]
+                ]
+            ];
+            $edgeFilter['query']['bool']['must_not'][] = [
+                'range' => [
+                    '__edges._hiddenAfterDateTime' => [
+                        'gt' => 'now'
+                    ]
+                ]
+            ];
         }
+
+        /*
+         * @todo make this work
+        if (!$contextNode->getContext()->isInaccessibleContentShown()) {
+            $edgeFilter['query']['bool']['minimum_should_match'] = 1;
+            foreach (array_keys($this->securityContext->getRoles()) as $roleName) {
+                $edgeFilter['query']['bool']['should'][] = [
+                    'term' => [
+                        '__edges.accessRoles' => $roleName
+                    ],
+                ];
+            }
+        }
+        */
+
+        $this->queryFilter('nested', $edgeFilter);
 
         $this->contextNode = $contextNode;
 

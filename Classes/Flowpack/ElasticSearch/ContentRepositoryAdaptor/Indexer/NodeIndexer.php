@@ -16,11 +16,10 @@ use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Exception;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
 use Flowpack\ElasticSearch\Domain\Model\Document as ElasticSearchDocument;
 use Flowpack\ElasticSearch\Domain\Model\Index;
-use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Model\Node;
+use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application as ArboretumAdaptor;
 use Nezaniel\Arboretum\Domain as Arboretum;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
-use TYPO3\TYPO3CR\Domain\Model\NodeType;
 use TYPO3\TYPO3CR\Domain\Service\ContentDimensionCombinator;
 use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
 use TYPO3\TYPO3CR\Domain\Service\NodeTypeManager;
@@ -289,41 +288,47 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     }
 
     /**
-     * @param NodeInterface|Node $node
-     * @todo add workspace support
+     * @param Arboretum\Model\Node $node
+     * @throws \TYPO3\TYPO3CR\Exception\NodeTypeNotFoundException
      */
-    public function bulkIndexNode(NodeInterface $node)
+    public function indexGraphNode(Arboretum\Model\Node $node)
     {
-        $contextPath = $node->getContextPath();
-
-        $contextPathHash = sha1($node->getContextPath());
-        $nodeType = $node->getNodeType();
-
-        $mappingType = $this->getIndex()->findType(NodeTypeMappingBuilder::convertNodeTypeNameToMappingName($nodeType));
-
+        $nodeAdaptor = new ArboretumAdaptor\Model\Node($node);
+        $mappingType = $this->getIndex()->findType(NodeTypeMappingBuilder::convertNodeTypeNameToMappingName($nodeAdaptor->getNodeType()));
 
         $fulltextIndexOfNode = [];
-        $nodePropertiesToBeStoredInIndex = $this->extractPropertiesAndFulltext($node, $fulltextIndexOfNode, function ($propertyName) use ($contextPathHash) {
-            $this->logger->log(sprintf('NodeIndexer (%s) - Property "%s" not indexed because no configuration found.', $contextPathHash, $propertyName), LOG_DEBUG, null, 'ElasticSearch (CR)');
-        });
 
-        $document = new ElasticSearchDocument($mappingType,
+        $contextPath = $nodeAdaptor->getContextPath();
+        $contextPathHash = sha1($contextPath);
+        $identifierForGraph = $node->getIdentifierForGraph();
+        $nodePropertiesToBeStoredInIndex = $this->extractPropertiesAndFulltext($nodeAdaptor, $fulltextIndexOfNode, function ($propertyName) use ($identifierForGraph) {
+            $this->logger->log(sprintf('NodeIndexer (%s) - Property "%s" not indexed because no configuration found.', $identifierForGraph, $propertyName), LOG_DEBUG, null, 'ElasticSearch (CR)');
+        });
+        $document = new ElasticSearchDocument(
+            $mappingType,
             $nodePropertiesToBeStoredInIndex,
-            /** @todo use the an identifier comprised of tree and node identifiers */
             $contextPathHash
         );
 
         $documentData = $document->getData();
-        $documentData['__workspace'] = $node->getContext()->getWorkspaceName();
-        $documentData['_accessroles'] = $node->getAccessRoles();
+        $documentData['__sortIndex'] = [];
 
-        foreach ($node->getContainingTrees() as $tree) {
-            $dimensionValues = $tree->getIdentityComponents()['dimensionValues'];
-            $documentData['__dimensionCombinations'][] = $dimensionValues;
-            $documentData['__dimensionCombinationHash'][] = md5(json_encode($dimensionValues));
+        $documentData['__edges'] = [];
+
+        foreach ($node->getIncomingEdges() as $incomingEdge) {
+            $documentData['__edges'][] = [
+                'tree' => $incomingEdge->getTree()->getIdentityHash(),
+                'sortIndex' => $incomingEdge->getPosition(),
+                'accessRoles' => $incomingEdge->getProperty('accessRoles'),
+                'hidden' => $incomingEdge->getProperty('hidden'),
+                'hiddenBeforeDateTime' => $incomingEdge->getProperty('hiddenBeforeDateTime') ? $incomingEdge->getProperty('hiddenBeforeDateTime')->format('Y-m-d\TH:i:sP') : null,
+                'hiddenAfterDateTime' => $incomingEdge->getProperty('hiddenAfterDateTime') ? $incomingEdge->getProperty('hiddenAfterDateTime')->format('Y-m-d\TH:i:sP') : null,
+                'hiddenInIndex' => $incomingEdge->getProperty('hiddenInIndex')
+            ];
         }
-        if ($this->isFulltextEnabled($node)) {
-            if ($this->isFulltextRoot($node)) {
+
+        if ($this->isFulltextEnabled($nodeAdaptor)) {
+            if ($this->isFulltextRoot($nodeAdaptor)) {
                 // for fulltext root documents, we need to preserve the "__fulltext" field. That's why we use the
                 // "update" API instead of the "index" API, with a custom script internally; as we
                 // shall not delete the "__fulltext" part of the document if it has any.
@@ -363,10 +368,10 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 ];
             }
 
-            $this->updateFulltext($node, $fulltextIndexOfNode);
+            $this->updateFulltext($nodeAdaptor, $fulltextIndexOfNode);
         }
 
-        $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null,
+        $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($nodeAdaptor->getContext()->getProperties())), LOG_DEBUG, null,
             'ElasticSearch (CR)');
     }
 
@@ -380,8 +385,9 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     {
         if (!isset($this->fulltextRegistry[$node->getNodeType()->getName()])) {
             $this->fulltextRegistry[$node->getNodeType()->getName()] = false;
-            if ($node->getNodeType()->hasConfiguration('search')) {
-                $searchSettingsForNode = $node->getNodeType()->getConfiguration('search');
+            $nodeType = $this->nodeTypeManager->getNodeType($node->getNodeType()->getName());
+            if ($nodeType->hasConfiguration('search')) {
+                $searchSettingsForNode = $nodeType->getConfiguration('search');
                 if (isset($searchSettingsForNode['fulltext']['enable']) && $searchSettingsForNode['fulltext']['enable'] === true) {
                     $this->fulltextRegistry[$node->getNodeType()->getName()] = true;
                 }

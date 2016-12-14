@@ -113,9 +113,40 @@ class NodeTypeMappingBuilder
                 'type' => 'string',
                 'index' => 'not_analyzed'
             ]);
-            $mapping->setPropertyByPath('_accessroles', [
-                'type' => 'string',
-                'index' => 'not_analyzed'
+
+            $mapping->setPropertyByPath('__edges', [
+                'type' => 'nested',
+                'include_in_all' => false,
+                'not_analyzed' => true,
+                'properties' => [
+                    'tree' => [
+                        'type' => 'string',
+                        'include_in_all' => false,
+                        'not_analyzed' => true,
+                    ],
+                    'sortIndex' => [
+                        'type' => 'integer'
+                    ],
+                    'accessRoles' => [
+                        'type' => 'string',
+                        'include_in_all' => false,
+                        'not_analyzed' => true,
+                    ],
+                    'hidden' => [
+                        'type' => 'boolean'
+                    ],
+                    'hiddenBeforeDateTime' => [
+                        'type' => 'date',
+                        'format' => 'date_time_no_millis'
+                    ],
+                    'hiddenAfterDateTime' => [
+                        'type' => 'date',
+                        'format' => 'date_time_no_millis'
+                    ],
+                    'hiddenInIndex' => [
+                        'type' => 'boolean'
+                    ],
+                ]
             ]);
 
             foreach ($nodeType->getProperties() as $propertyName => $propertyConfiguration) {

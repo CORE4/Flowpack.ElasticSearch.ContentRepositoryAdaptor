@@ -202,24 +202,27 @@ class NodeIndexCommandController extends CommandController
         });
         $this->output->progressFinish();
 
-        $time = microtime(true);
         $this->outputLine('Indexing content graph...');
-        $this->output->progressStart($numberOfNodes);
-        $indexedSinceLastFlush = 0;
+        $time = time();
+        $this->output->progressStart(count($graph->getNodes()));
+        $indexedEdges = 0;
+        $nodesSinceLastFlush = 0;
         foreach ($graph->getNodes() as $node) {
-            $nodeAdaptor = new ArboretumAdaptor\Model\Node($node);
-            $this->nodeIndexer->bulkIndexNode($nodeAdaptor);
-            $indexedSinceLastFlush++;
-            if ($indexedSinceLastFlush > 1000) {
-                $this->nodeIndexer->flush();
-                $indexedSinceLastFlush = 0;
+            if ($node->getType() !== 'MeisterWerke.MeisterCom:Asset') {
+                $this->nodeIndexer->indexGraphNode($node);
             }
+            $nodesSinceLastFlush++;
+            $indexedEdges += count($node->getIncomingEdges());
             $this->output->progressAdvance();
+            if ($nodesSinceLastFlush >= 1000) {
+                $this->nodeIndexer->flush();
+                $nodesSinceLastFlush = 0;
+            }
         }
-        $this->nodeIndexer->flush();
         $this->output->progressFinish();
-
-        $this->logger->log('Done. (indexed ' . $numberOfNodes . ' nodes in ' . (round((microtime(true) - $time) * 1000)) .' milliseconds)', LOG_INFO);
+        $this->nodeIndexer->flush();
+        $timeSpent = time() - $time;
+        $this->logger->log('Done. Indexed ' . count($graph->getNodes()) . ' nodes and ' . $indexedEdges . ' edges in ' . $timeSpent . ' s at ' . round(count($graph->getNodes()) / $timeSpent) . ' nodes/s (' . round($indexedEdges / $timeSpent) . ' edges/s)', LOG_INFO);
         $this->nodeIndexer->getIndex()->refresh();
 
         // TODO: smoke tests
