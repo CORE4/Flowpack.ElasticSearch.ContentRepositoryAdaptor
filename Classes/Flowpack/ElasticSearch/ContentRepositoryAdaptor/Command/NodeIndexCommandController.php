@@ -208,9 +208,7 @@ class NodeIndexCommandController extends CommandController
         $indexedEdges = 0;
         $nodesSinceLastFlush = 0;
         foreach ($graph->getNodes() as $node) {
-            if ($node->getType() !== 'MeisterWerke.MeisterCom:Asset') {
-                $this->nodeIndexer->indexGraphNode($node);
-            }
+            $this->nodeIndexer->indexGraphNode($node);
             $nodesSinceLastFlush++;
             $indexedEdges += count($node->getIncomingEdges());
             $this->output->progressAdvance();
