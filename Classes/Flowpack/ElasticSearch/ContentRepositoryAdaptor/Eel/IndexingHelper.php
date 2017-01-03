@@ -74,8 +74,12 @@ class IndexingHelper extends \TYPO3\TYPO3CR\Search\Eel\IndexingHelper
                 return null;
             }
             $stream = $value->getResource()->getStream();
-            stream_filter_append($stream, 'convert.base64-encode');
-            $result = stream_get_contents($stream);
+            if ($stream) {
+                stream_filter_append($stream, 'convert.base64-encode');
+                $result = stream_get_contents($stream);
+            } else {
+                $result = null;
+            }
             return $result;
         } else {
             throw new IndexingException('Value of type ' . gettype($value) . ' - ' . get_class($value) . ' could not be converted to asset binary.', 1437555909);
