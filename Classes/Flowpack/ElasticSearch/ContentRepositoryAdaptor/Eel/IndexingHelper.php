@@ -23,6 +23,12 @@ class IndexingHelper extends \TYPO3\TYPO3CR\Search\Eel\IndexingHelper
 {
 
     /**
+     * @Flow\InjectConfiguration(package="TYPO3.TYPO3CR.Search", path="elasticSearch.assetSizeLimit")
+     * @var int
+     */
+    protected $assetSizeLimit;
+
+    /**
      * Convert an array of nodes to an array of node identifiers
      *
      * @param array <NodeInterface> $nodes
@@ -62,6 +68,9 @@ class IndexingHelper extends \TYPO3\TYPO3CR\Search\Eel\IndexingHelper
             return $result;
         } elseif ($value instanceof AssetInterface) {
             if (!$value->getResource()) {
+                return null;
+            }
+            if ($this->assetSizeLimit && $value->getResource()->getFileSize() > $this->assetSizeLimit) {
                 return null;
             }
             $stream = $value->getResource()->getStream();
