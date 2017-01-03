@@ -8,7 +8,8 @@
         "php": ">=5.5.0",
         "flowpack/elasticsearch": "*",
         "typo3/eel": "*",
-        "typo3/typo3cr-search": "*"
+        "typo3/typo3cr-search": "*",
+        "nezaniel/arboretum-contentrepositoryadaptor": "*"
     },
     "autoload": {
         "psr-0": {
