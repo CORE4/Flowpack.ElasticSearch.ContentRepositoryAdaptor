@@ -12,6 +12,7 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Command;
  */
 
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
+use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\IndexingContext;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\NodeTreeService;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Cli\CommandController;
@@ -101,6 +102,12 @@ class NodeIndexCommandController extends CommandController
     protected $persistenceManager;
 
     /**
+     * @Flow\Inject
+     * @var IndexingContext
+     */
+    protected $indexingContext;
+
+    /**
      * @var array
      */
     protected $settings;
@@ -165,6 +172,7 @@ class NodeIndexCommandController extends CommandController
      */
     public function buildCommand($limit = null, $update = false, $workspace = null, $postfix = null)
     {
+        $this->indexingContext->setBulkIndexingInProgress(true);
         if ($update === true) {
             $this->logger->log('!!! Update Mode (Development) active!', LOG_INFO);
         } else {
@@ -238,6 +246,7 @@ class NodeIndexCommandController extends CommandController
         if ($update === false) {
             $this->nodeIndexer->updateIndexAlias();
         }
+        $this->indexingContext->reset();
     }
 
     /**

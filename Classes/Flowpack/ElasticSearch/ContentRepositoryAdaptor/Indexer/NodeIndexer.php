@@ -14,6 +14,7 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Indexer;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\ElasticSearchClient;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Exception;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuilder;
+use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\IndexingContext;
 use Flowpack\ElasticSearch\Domain\Model\Document as ElasticSearchDocument;
 use Flowpack\ElasticSearch\Domain\Model\Index;
 use TYPO3\Flow\Annotations as Flow;
@@ -83,6 +84,12 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
     protected $contextFactory;
 
     /**
+     * @Flow\Inject
+     * @var IndexingContext
+     */
+    protected $indexingContext;
+
+    /**
      * The current ElasticSearch bulk request, in the format required by http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html
      *
      * @var array
@@ -138,8 +145,6 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
      *
      * @param NodeInterface $node
      * @param string $targetWorkspaceName In case this is triggered during publishing, a workspace name will be passed in
-     * @return void
-     * @throws \TYPO3\TYPO3CR\Search\Exception\IndexingException
      */
     public function indexNode(NodeInterface $node, $targetWorkspaceName = null)
     {
@@ -170,7 +175,8 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
 
             if ($this->bulkProcessing === false) {
                 // Remove document with the same contextPathHash but different NodeType, required after NodeType change
-                $this->logger->log(sprintf('NodeIndexer: Search and remove duplicate document if needed. ID: %s', $contextPath, $node->getNodeType()->getName(), $contextPathHash), LOG_DEBUG, null, 'ElasticSearch (CR)');
+                $this->logger->log(sprintf('NodeIndexer: Search and remove duplicate document if needed. ID: %s', $contextPath, $node->getNodeType()->getName(), $contextPathHash), LOG_DEBUG, null,
+                    'ElasticSearch (CR)');
                 $this->getIndex()->request('DELETE', '/_query', [], json_encode([
                     'query' => [
                         'bool' => [
@@ -265,11 +271,33 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
                 $this->updateFulltext($node, $fulltextIndexOfNode, $targetWorkspaceName);
             }
 
-            $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null, 'ElasticSearch (CR)');
+            $this->logger->log(sprintf('NodeIndexer: Added / updated node %s. ID: %s Context: %s', $contextPath, $contextPathHash, json_encode($node->getContext()->getProperties())), LOG_DEBUG, null,
+                'ElasticSearch (CR)');
         };
 
-        $workspaceName = $targetWorkspaceName ?: $node->getContext()->getWorkspaceName();
-        $indexer($node, $workspaceName);
+        if ($this->indexingContext->isBulkIndexingInProgress()) {
+            $workspaceName = $targetWorkspaceName ?: $node->getContext()->getWorkspaceName();
+            $indexer($node, $workspaceName);
+        } else {
+            $dimensionCombinations = $this->contentDimensionCombinator->getAllAllowedCombinations();
+            $workspaceName = $targetWorkspaceName ?: 'live';
+            $nodeIdentifier = $node->getIdentifier();
+            if ($dimensionCombinations !== []) {
+                foreach ($dimensionCombinations as $combination) {
+                    $context = $this->contextFactory->create(['workspaceName' => $workspaceName, 'dimensions' => $combination]);
+                    $node = $context->getNodeByIdentifier($nodeIdentifier);
+                    if ($node !== null) {
+                        $indexer($node, $targetWorkspaceName);
+                    }
+                }
+            } else {
+                $context = $this->contextFactory->create(['workspaceName' => $workspaceName]);
+                $node = $context->getNodeByIdentifier($nodeIdentifier);
+                if ($node !== null) {
+                    $indexer($node, $targetWorkspaceName);
+                }
+            }
+        }
     }
 
     /**
