@@ -1251,6 +1251,9 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
 
         $treeIdentity = $this->treeService->translateContentContextToTreeIdentity($contextNode->getContext());
 
+        // @todo add workspace support
+        $treeIdentity['workspace'] = 'live';
+
         $edgeFilter = [
             'path' => '__edges',
             'query' => [
