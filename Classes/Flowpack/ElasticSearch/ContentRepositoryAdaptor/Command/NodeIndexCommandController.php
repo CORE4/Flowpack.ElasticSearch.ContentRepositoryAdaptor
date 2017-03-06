@@ -17,10 +17,10 @@ use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\NodeTreeService;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Persistence\Doctrine\PersistenceManager;
-use TYPO3\TYPO3CR\Domain\Service\Context as ContentContext;
-use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
-use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
-use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
+use Neos\ContentRepository\Domain\Service\Context as ContentContext;
+use Neos\ContentRepository\Domain\Model\NodeInterface;
+use Neos\ContentRepository\Domain\Service\ContextFactory;
+use Neos\ContentRepository\Search\Indexer\NodeIndexingManager;
 
 /**
  * Provides CLI features for index handling
@@ -37,19 +37,19 @@ class NodeIndexCommandController extends CommandController
 
     /**
      * @Flow\Inject
-     * @var \TYPO3\TYPO3CR\Domain\Repository\WorkspaceRepository
+     * @var \Neos\ContentRepository\Domain\Repository\WorkspaceRepository
      */
     protected $workspaceRepository;
 
     /**
      * @Flow\Inject
-     * @var \TYPO3\TYPO3CR\Domain\Repository\NodeDataRepository
+     * @var \Neos\ContentRepository\Domain\Repository\NodeDataRepository
      */
     protected $nodeDataRepository;
 
     /**
      * @Flow\Inject
-     * @var \TYPO3\TYPO3CR\Domain\Factory\NodeFactory
+     * @var \Neos\ContentRepository\Domain\Factory\NodeFactory
      */
     protected $nodeFactory;
 
@@ -120,7 +120,7 @@ class NodeIndexCommandController extends CommandController
     public function initializeObject($cause)
     {
         if ($cause === \Neos\Flow\ObjectManagement\ObjectManagerInterface::INITIALIZATIONCAUSE_CREATED) {
-            $this->settings = $this->configurationManager->getConfiguration(\Neos\Flow\Configuration\ConfigurationManager::CONFIGURATION_TYPE_SETTINGS, 'TYPO3.TYPO3CR.Search');
+            $this->settings = $this->configurationManager->getConfiguration(\Neos\Flow\Configuration\ConfigurationManager::CONFIGURATION_TYPE_SETTINGS, 'Neos.ContentRepository.Search');
         }
     }
 
