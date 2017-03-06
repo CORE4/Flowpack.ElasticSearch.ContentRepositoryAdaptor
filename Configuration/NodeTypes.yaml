@@ -1,5 +1,5 @@
 
-'TYPO3.Neos:Node': &node
+'Neos.Neos:Node': &node
   search:
     fulltext:
       enable: true
@@ -86,13 +86,13 @@
 
 'unstructured': *node
 
-'TYPO3.Neos:Hidable':
+'Neos.Neos:Hidable':
   properties:
     '_hidden':
       search:
         indexing: '${node.hidden}'
 
-'TYPO3.Neos:Timable':
+'Neos.Neos:Timable':
   properties:
     '_hiddenBeforeDateTime':
       search:
@@ -111,7 +111,7 @@
         indexing: '${(node.hiddenAfterDateTime ? Date.format(node.hiddenAfterDateTime, "Y-m-d\TH:i:sP") : null)}'
 
 
-'TYPO3.Neos:Document':
+'Neos.Neos:Document':
   search:
     fulltext:
       isRoot: true
@@ -159,20 +159,20 @@
               include_in_all: true
               boost: 1
 
-'TYPO3.Neos.NodeTypes:Text':
+'Neos.Neos.NodeTypes:Text':
   properties:
     'text':
       search:
         fulltextExtractor: '${Indexing.extractHtmlTags(value)}'
 
-'TYPO3.Neos.NodeTypes:Headline':
+'Neos.Neos.NodeTypes:Headline':
   properties:
     'title':
       search:
         fulltextExtractor: '${Indexing.extractHtmlTags(value)}'
 
 
-'TYPO3.Neos.NodeTypes:TextWithImage':
+'Neos.Neos.NodeTypes:TextWithImage':
   properties:
     'text':
       search:
