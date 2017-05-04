@@ -281,7 +281,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         $configuration = [
             $propertyName => [
                 'order' => 'desc',
-                'missing' => PHP_INT_MAX - 1
+                'missing' => '_last'
             ]
         ];
 
@@ -303,7 +303,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
         $configuration = [
             $propertyName => [
                 'order' => 'asc',
-                'missing' => PHP_INT_MAX - 1
+                'missing' => '_last'
             ]
         ];
 
