@@ -273,10 +273,11 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      * Sort descending by $propertyName
      *
      * @param string $propertyName the property name to sort by
+     * @param array $nestedFilters
      * @return ElasticSearchQueryBuilder
      * @api
      */
-    public function sortDesc($propertyName)
+    public function sortDesc($propertyName, array $nestedFilters = [])
     {
         $configuration = [
             $propertyName => [
@@ -284,6 +285,9 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
                 'missing' => '_last'
             ]
         ];
+        if (!empty($nestedFilters)) {
+            $configuration[$propertyName]['nested_filter'] = $nestedFilters;
+        }
 
         $this->sort($configuration);
 
@@ -294,10 +298,11 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      * Sort ascending by $propertyName
      *
      * @param string $propertyName the property name to sort by
+     * @param array $nestedFilters
      * @return ElasticSearchQueryBuilder
      * @api
      */
-    public function sortAsc($propertyName)
+    public function sortAsc($propertyName, array $nestedFilters = [])
     {
 
         $configuration = [
@@ -306,6 +311,9 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
                 'missing' => '_last'
             ]
         ];
+        if (!empty($nestedFilters)) {
+            $configuration[$propertyName]['nested_filter'] = $nestedFilters;
+        }
 
         $this->sort($configuration);
 
