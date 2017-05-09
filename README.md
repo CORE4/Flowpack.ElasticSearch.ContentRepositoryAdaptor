@@ -2,40 +2,38 @@
 
 # Neos Elasticsearch Adapter
 
-*supporting Elasticsearch versions 1.2.x to 1.7.x*
-
-Created by Sebastian Kurfürst; [contributions by Karsten Dambekalns, Robert Lemke and others](https://github.com/Flowpack/Flowpack.ElasticSearch.ContentRepositoryAdaptor/graphs/contributors).
-
 This project connects the Neos Content Repository (TYPO3CR) to Elasticsearch; enabling two
 main functionalities:
 
 * finding Nodes in TypoScript / Eel by arbitrary queries
 * Full-Text Indexing of Pages and other Documents (of course including the full content)
 
+## Elastic version support
 
-Relevant Packages:
+You can switch the Elastic driver by editing ```Settings.yaml```
+(```Flowpack.ElasticSearch.ContentRepositoryAdaptor.driver.version```) with the following value:
 
-* `TYPO3.TYPO3CR.Search`: provides common functionality for searching TYPO3CR nodes,
+* ```1.x``` to support Elastic 1.2 to 1.7
+* ```2.x``` to support Elastic 2.x
+
+_Currently the Driver interfaces as not marked as API, and can be changed to adapt to future needs (especially the support of Elastic v5)._
+
+## Relevant Packages
+
+* [TYPO3.TYPO3CR.Search](https://www.neos.io/download-and-extend/packages/typo3/typo3-typo3cr-search.html): provides common functionality for searching TYPO3CR nodes,
   does not contain a search backend
-
-* `Flowpack.ElasticSearch`: provides common code for working with Elasticsearch
-
-* `Flowpack.ElasticSearch.ContentRepositoryAdaptor`: this package
-
-* `Flowpack.SimpleSearch.ContentRepositoryAdaptor`: an alternative search backend (to be used
+* [Flowpack.ElasticSearch](https://www.neos.io/download-and-extend/packages/flowpack/flowpack-elasticsearch.html): provides common code for working with Elasticsearch
+* [Flowpack.ElasticSearch.ContentRepositoryAdaptor](https://www.neos.io/download-and-extend/packages/flowpack/flowpack-elasticsearch-contentrepositoryadaptor.html): this package
+* [Flowpack.SimpleSearch.ContentRepositoryAdaptor](https://www.neos.io/download-and-extend/packages/flowpack/flowpack-simplesearch-contentrepositoryadaptor.html): an alternative search backend (to be used
   instead of this package); storing the search index in SQLite
-
-* `Flowpack.SearchPlugin`: search plugin for Neos
-
+* [Flowpack.SearchPlugin](https://www.neos.io/download-and-extend/packages/flowpack/flowpack-searchplugin.html): search plugin for Neos
 
 ## Installation
 
 ```
-// for development (Master; Tested on Neos 2.0)
-composer require 'typo3/typo3cr-search:@dev'
-composer require 'flowpack/elasticsearch-contentrepositoryadaptor:@dev'
-
-composer require 'flowpack/searchplugin:@dev'
+composer require 'flowpack/elasticsearch-contentrepositoryadaptor'
+// Not required, but can be used to learn how to integration the flowpack/elasticsearch-contentrepositoryadaptor in your project
+composer require 'flowpack/searchplugin'
 ```
 
 Now, add the routes as described in the [README of Flowpack.SearchPlugin](https://github.com/skurfuerst/Flowpack.SearchPlugin)
@@ -47,89 +45,14 @@ Finally, run `./flow nodeindex:build`, and add the search plugin to your page. I
 
 ## Elasticsearch Configuration file elasticsearch.yml
 
-There is a need, depending on your version of Elasticsearch, to add the following lines of configuration to your
+There is a need, depending on your version of Elasticsearch, to add specific configuration to your
 Elasticsearch Configuration File `<your-elasticsearch>/config/elasticsearch.yml`.
 
-### Needed Configuration in configuration.yml for Elasticsearch 1.6.x and 1.7.x
-
-In verson 1.6 the `script.disable_dynamic` settings and the Groovy sandbox as such [have been deprecated]
-(https://www.elastic.co/guide/en/elasticsearch/reference/1.6/modules-scripting.html#enable-dynamic-scripting).
-You may continue to use the settings for version 1.5.x, but this is what would be the correct configuration for 1.6.x and 1.7.x.
-
-```
-# The following settings are absolutely required for the CR adaptor to work
-script.file: on
-script.engine.groovy.inline: sandbox
-script.engine.groovy.indexed: sandbox
-
-script.groovy.sandbox.class_whitelist: java.util.LinkedHashMap
-script.groovy.sandbox.receiver_whitelist:  java.util.Iterator, java.lang.Object, java.util.Map, java.util.Map$Entry
-script.groovy.sandbox.enabled: true
-
-# the following settings secure your cluster
-cluster.name: [PUT_YOUR_CUSTOM_NAME_HERE]
-network.host: 127.0.0.1
-
-# the following settings are well-suited for smaller Elasticsearch instances (e.g. as long as you can stay on one host)
-index.number_of_shards: 1
-index.number_of_replicas: 0
-```
-
-### Needed Configuration in configuration.yml for Elasticsearch 1.4.x and 1.5.x
-
-```
-# The following settings are absolutely required for the CR adaptor to work
-script.disable_dynamic: sandbox
-script.groovy.sandbox.class_whitelist: java.util.LinkedHashMap
-script.groovy.sandbox.receiver_whitelist:  java.util.Iterator, java.lang.Object, java.util.Map, java.util.Map$Entry
-script.groovy.sandbox.enabled: true
-
-# the following settings secure your cluster
-cluster.name: [PUT_YOUR_CUSTOM_NAME_HERE]
-network.host: 127.0.0.1
-
-# the following settings are well-suited for smaller Elasticsearch instances (e.g. as long as you can stay on one host)
-index.number_of_shards: 1
-index.number_of_replicas: 0
-```
-
-### Needed Configuration in configuration.yml for Elasticsearch 1.3.x
-
-```
-# The following settings are absolutely required for the CR adaptor to work
-script.groovy.sandbox.class_whitelist: java.util.LinkedHashMap
-script.groovy.sandbox.receiver_whitelist:  java.util.Iterator, java.lang.Object, java.util.Map, java.util.Map$Entry
-
-# the following settings secure your cluster
-cluster.name: [PUT_YOUR_CUSTOM_NAME_HERE]
-network.host: 127.0.0.1
-
-# the following settings are well-suited for smaller Elasticsearch instances (e.g. as long as you can stay on one host)
-index.number_of_shards: 1
-index.number_of_replicas: 0
-```
-
-You can get further information about this topic here:
-
-http://www.elasticsearch.org/blog/elasticsearch-1-3-0-released/
-http://www.elasticsearch.org/blog/scripting-security/
-http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-scripting.html
-
-## Needed Configuration for Elasticsearch 1.2.x
-
-
-If you are using Elasticsearch version 1.2 you have also to install groovy as a plugin. To install the plugin just run
-the following command in the root folder of your elastic:
-
-```
-bin/plugin -install elasticsearch/elasticsearch-lang-groovy/2.2.0.
-```
-
-```
-script.disable_dynamic: false
-script.default_lang: groovy
-
-```
+- [ElasticSearch 2.x](Documentation/ElasticConfiguration-2.x.md)
+- [ElasticSearch 1.6 to 1.7](Documentation/ElasticConfiguration-1.6-1.7.md)
+- [ElasticSearch 1.4 to 1.5](Documentation/ElasticConfiguration-1.4-1.5.md)
+- [ElasticSearch 1.3](Documentation/ElasticConfiguration-1.3.md)
+- [ElasticSearch 1.2](Documentation/ElasticConfiguration-1.2.md)
 
 ## Building up the Index
 
@@ -138,7 +61,6 @@ The node index is updated on the fly, but during development you need to update 
 In case of a mapping update, you need to reindex all nodes. Don't worry to do that in production;
 the system transparently creates a new index, fills it completely, and when everything worked,
 changes the index alias.
-
 
 ```
 ./flow nodeindex:build
@@ -149,7 +71,6 @@ changes the index alias.
  # in order to remove old, non-used indices, you should use this command from time to time:
 ./flow nodeindex:cleanup
 ```
-
 
 ### Advanced Index Settings
 If you need advanced settings you can define them in your *Settings.yaml*:
@@ -224,6 +145,11 @@ Furthermore, there is a more low-level operator which can be used to add arbitra
 
 * `queryFilter("filterType", {option1: "value1"})`
 
+At lowest level, there is the `request` operator which allows to modify the request in arbitrary manner. Note that the existing request is merged with the passed-in type in case it is an array:
+
+* `request('query.filtered.query.bool.minimum_should_match', 1)`
+* `request('query.filtered.query.bool', {"minimum_should_match": 1})`
+
 In order to debug the query more easily, the following operation is helpful:
 
 * `log()` log the full query on execution into the Elasticsearch log (i.e. in `Data/Logs/ElasticSearch.log`)
@@ -282,8 +208,8 @@ Right now there are two methods implemented. One generic `aggregation` function 
 aggregation definition and a pre-configured `fieldBasedAggregation`. Both methods can be added to your TS search query.
 You can nest aggregations by providing a parent name.
 
-* `aggregation($name, array $aggregationDefinition, $parentPath = NULL)` -- generic method to add a $aggregationDefinition under a path $parentPath with the name $name
-* `fieldBasedAggregation($name, $field, $type = "terms", $parentPath = NULL)` -- adds a simple filed based Aggregation of type $type with name $name under path $parentPath. Used for simple aggregations like sum, avg, min, max or terms
+* `aggregation($name, array $aggregationDefinition, $parentPath = NULL)` -- generic method to add a $aggregationDefinition under a path $parentPath with the name $name.
+* `fieldBasedAggregation($name, $field, $type = 'terms', $parentPath = '', $size = 10)` -- adds a simple filed based Aggregation of type $type with name $name under path $parentPath. Used for simple aggregations like sum, avg, min, max or terms. By default 10 buckets are returned.
 
 
 ### Examples
@@ -753,6 +679,19 @@ in the NodeTypes.yaml. Generally this works by defining the global mapping at `[
         search_analyzer: custom_french_analyzer
 ```
 
+## Change the default Elastic index name
+
+If you need to run serveral (different) neos instances on the same elasticsearch server you will need to change the Configuration/Settings.yaml indexName for each of your project.
+
+So `./flow nodeindex:build` or `./flow nodeindex:cleanup` won't overwrite your other sites index.
+
+```
+TYPO3:
+  TYPO3CR:
+    Search:
+      elasticSearch:
+        indexName: useMoreSpecificIndexName
+```
 
 ## Debugging
 
@@ -776,14 +715,10 @@ The configuration from Version 1 to Version 2 has changed; here's what to change
 
 1. Change the base namespace for configuration from `Flowpack.ElasticSearch.ContentRepositoryAdaptor`
    to `TYPO3.TYPO3CR.Search`. All further adjustments are made underneath this namespace:
-
 2. (If it exists in your configuration:) Move `indexName` to `elasticSearch.indexName`
-
 3. (If it exists in your configuration:) Move `log` to `elasticSearch.log`
-
 4. search for `mapping` (inside `defaultConfigurationPerType.<typeName>`) and replace it by
    `elasticSearchMapping`.
-
 5. Inside the `indexing` expressions (at `defaultConfigurationPerType.<typeName>`), replace
    `ElasticSearch.` by `Indexing.`.
 
@@ -791,11 +726,9 @@ The configuration from Version 1 to Version 2 has changed; here's what to change
 
 1. Replace `elasticSearch` by `search`. This replaces both `<YourNodeType>.elasticSearch`
    and `<YourNodeType>.properties.<propertyName>.elasticSearch`.
-
 2. search for `mapping` (inside `<YourNodeType>.properties.<propertyName>.search`) and replace it by
    `elasticSearchMapping`.
-
 3. Replace `ElasticSeach.fulltext` by `Indexing`
-
 4. Search for `ElasticSearch.` (inside the `indexing` expressions) and replace them by `Indexing.`
 
+Created by Sebastian Kurfürst; [contributions by Karsten Dambekalns, Robert Lemke and others](https://github.com/Flowpack/Flowpack.ElasticSearch.ContentRepositoryAdaptor/graphs/contributors).
