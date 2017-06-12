@@ -2,7 +2,7 @@
 namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service;
 
 /*
- * This file is part of the TYPO3.TYPO3CR package.
+ * This file is part of the Neos.ContentRepository package.
  *
  * (c) Contributors of the Neos Project - www.neos.io
  *
@@ -12,12 +12,12 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service;
  */
 
 use Neos\Flow\Annotations as Flow;
-use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
-use TYPO3\TYPO3CR\Domain\Model\Workspace;
-use TYPO3\TYPO3CR\Domain\Repository\WorkspaceRepository;
-use TYPO3\TYPO3CR\Domain\Service\ContentDimensionCombinator;
-use TYPO3\TYPO3CR\Domain\Service\Context as ContentContext;
-use TYPO3\TYPO3CR\Domain\Service\ContextFactory as ContentContextFactory;
+use Neos\ContentRepository\Domain\Model\NodeInterface;
+use Neos\ContentRepository\Domain\Model\Workspace;
+use Neos\ContentRepository\Domain\Repository\WorkspaceRepository;
+use Neos\ContentRepository\Domain\Service\ContentDimensionCombinator;
+use Neos\ContentRepository\Domain\Service\Context as ContentContext;
+use Neos\ContentRepository\Domain\Service\ContextFactory as ContentContextFactory;
 
 /**
  * The node tree service

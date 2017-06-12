@@ -13,17 +13,17 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Eel;
 
 use Neos\Flow\Annotations as Flow;
 use Neos\Media\Domain\Model\AssetInterface;
-use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
-use TYPO3\TYPO3CR\Search\Exception\IndexingException;
+use Neos\ContentRepository\Domain\Model\NodeInterface;
+use Neos\ContentRepository\Search\Exception\IndexingException;
 
 /**
  * IndexingHelper
  */
-class IndexingHelper extends \TYPO3\TYPO3CR\Search\Eel\IndexingHelper
+class IndexingHelper extends \Neos\ContentRepository\Search\Eel\IndexingHelper
 {
 
     /**
-     * @Flow\InjectConfiguration(package="TYPO3.TYPO3CR.Search", path="elasticSearch.assetSizeLimit")
+     * @Flow\InjectConfiguration(package="Neos.ContentRepository.Search", path="elasticSearch.assetSizeLimit")
      * @var int
      */
     protected $assetSizeLimit;

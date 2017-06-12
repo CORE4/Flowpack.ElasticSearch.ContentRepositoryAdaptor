@@ -19,12 +19,12 @@ use Flowpack\ElasticSearch\Domain\Model\Index;
 use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application as ArboretumAdaptor;
 use Nezaniel\Arboretum\Domain as Arboretum;
 use Neos\Flow\Annotations as Flow;
-use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
-use TYPO3\TYPO3CR\Domain\Service\ContentDimensionCombinator;
-use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
-use TYPO3\TYPO3CR\Domain\Service\NodeTypeManager;
-use TYPO3\TYPO3CR\Search\Indexer\AbstractNodeIndexer;
-use TYPO3\TYPO3CR\Search\Indexer\BulkNodeIndexerInterface;
+use Neos\ContentRepository\Domain\Model\NodeInterface;
+use Neos\ContentRepository\Domain\Service\ContentDimensionCombinator;
+use Neos\ContentRepository\Domain\Service\ContextFactory;
+use Neos\ContentRepository\Domain\Service\NodeTypeManager;
+use Neos\ContentRepository\Search\Indexer\AbstractNodeIndexer;
+use Neos\ContentRepository\Search\Indexer\BulkNodeIndexerInterface;
 
 /**
  * Indexer for Content Repository Nodes. Triggered from the NodeIndexingManager.
@@ -152,7 +152,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
      * @param NodeInterface $node
      * @param string $targetWorkspaceName In case this is triggered during publishing, a workspace name will be passed in
      * @return void
-     * @throws \TYPO3\TYPO3CR\Search\Exception\IndexingException
+     * @throws \Neos\ContentRepository\Search\Exception\IndexingException
      */
     public function indexNode(NodeInterface $node, $targetWorkspaceName = null)
     {
@@ -289,7 +289,7 @@ class NodeIndexer extends AbstractNodeIndexer implements BulkNodeIndexerInterfac
 
     /**
      * @param Arboretum\Model\Node $node
-     * @throws \TYPO3\TYPO3CR\Exception\NodeTypeNotFoundException
+     * @throws \Neos\ContentRepository\Exception\NodeTypeNotFoundException
      */
     public function indexGraphNode(Arboretum\Model\Node $node)
     {

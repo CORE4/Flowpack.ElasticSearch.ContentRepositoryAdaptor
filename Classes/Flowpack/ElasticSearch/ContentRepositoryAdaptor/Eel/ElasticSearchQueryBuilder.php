@@ -18,9 +18,9 @@ use Neos\Eel\ProtectedContextAwareInterface;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Security\Context as SecurityContext;
 use Neos\Utility\Arrays;
-use TYPO3\TYPO3CR\Domain\Model\NodeInterface;
-use TYPO3\TYPO3CR\Domain\Service\ContentDimensionPresetSourceInterface;
-use TYPO3\TYPO3CR\Search\Search\QueryBuilderInterface;
+use Neos\ContentRepository\Domain\Model\NodeInterface;
+use Neos\ContentRepository\Domain\Service\ContentDimensionPresetSourceInterface;
+use Neos\ContentRepository\Search\Search\QueryBuilderInterface;
 
 /**
  * Query Builder for ElasticSearch Queries
@@ -1064,7 +1064,7 @@ class ElasticSearchQueryBuilder implements QueryBuilderInterface, ProtectedConte
      *
      * This method is rather internal; just to be called from the ElasticSearchQueryResult. For the public API, please use execute()
      *
-     * @return array<\TYPO3\TYPO3CR\Domain\Model\NodeInterface>
+     * @return array<\Neos\ContentRepository\Domain\Model\NodeInterface>
      */
     public function fetch()
     {
