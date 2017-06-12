@@ -20,7 +20,7 @@ use Neos\Flow\Security\Context as SecurityContext;
 use Neos\Utility\Arrays;
 use Neos\ContentRepository\Domain\Model\NodeInterface;
 use Neos\ContentRepository\Domain\Service\ContentDimensionPresetSourceInterface;
-use Neos\ContentRepository\Search\Search\QueryBuilderInterface;
+use Neos\ContentRepository\Search\QueryBuilderInterface;
 
 /**
  * Query Builder for ElasticSearch Queries

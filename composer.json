@@ -10,7 +10,7 @@
         "php": ">=5.5.0",
         "flowpack/elasticsearch": "*",
         "neos/eel": "*",
-        "neos/content-repository": "*",
+        "neos/content-repository-search": "*",
         "nezaniel/arboretum-contentrepositoryadaptor": "*"
     },
     "autoload": {
