@@ -7,8 +7,8 @@
     "require": {
         "php": ">=5.5.0",
         "flowpack/elasticsearch": "*",
-        "typo3/eel": "*",
-        "typo3/typo3cr-search": "*",
+        "neos/eel": "*",
+        "neos/content-repository": "*",
         "nezaniel/arboretum-contentrepositoryadaptor": "*"
     },
     "autoload": {
