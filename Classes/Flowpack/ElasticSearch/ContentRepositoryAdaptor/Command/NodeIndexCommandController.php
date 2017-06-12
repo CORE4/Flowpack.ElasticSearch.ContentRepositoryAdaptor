@@ -15,9 +15,9 @@ use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Mapping\NodeTypeMappingBuild
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Service\NodeTreeService;
 use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Service\GraphService;
 use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application as ArboretumAdaptor;
-use TYPO3\Flow\Annotations as Flow;
-use TYPO3\Flow\Cli\CommandController;
-use TYPO3\Flow\Persistence\Doctrine\PersistenceManager;
+use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Cli\CommandController;
+use Neos\Flow\Persistence\Doctrine\PersistenceManager;
 use TYPO3\TYPO3CR\Domain\Model\NodeData;
 use TYPO3\TYPO3CR\Domain\Service\ContextFactory;
 use TYPO3\TYPO3CR\Search\Indexer\NodeIndexingManager;
@@ -73,7 +73,7 @@ class NodeIndexCommandController extends CommandController
 
     /**
      * @Flow\Inject
-     * @var \TYPO3\Flow\Configuration\ConfigurationManager
+     * @var \Neos\Flow\Configuration\ConfigurationManager
      */
     protected $configurationManager;
 
@@ -119,8 +119,8 @@ class NodeIndexCommandController extends CommandController
      */
     public function initializeObject($cause)
     {
-        if ($cause === \TYPO3\Flow\ObjectManagement\ObjectManagerInterface::INITIALIZATIONCAUSE_CREATED) {
-            $this->settings = $this->configurationManager->getConfiguration(\TYPO3\Flow\Configuration\ConfigurationManager::CONFIGURATION_TYPE_SETTINGS, 'TYPO3.TYPO3CR.Search');
+        if ($cause === \Neos\Flow\ObjectManagement\ObjectManagerInterface::INITIALIZATIONCAUSE_CREATED) {
+            $this->settings = $this->configurationManager->getConfiguration(\Neos\Flow\Configuration\ConfigurationManager::CONFIGURATION_TYPE_SETTINGS, 'TYPO3.TYPO3CR.Search');
         }
     }
 
