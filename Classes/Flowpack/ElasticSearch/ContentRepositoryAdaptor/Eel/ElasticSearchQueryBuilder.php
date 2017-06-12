@@ -14,7 +14,7 @@ namespace Flowpack\ElasticSearch\ContentRepositoryAdaptor\Eel;
 use Flowpack\ElasticSearch\ContentRepositoryAdaptor\Exception\QueryBuildingException;
 use Nezaniel\Arboretum\ContentRepositoryAdaptor\Application\Service\TreeService;
 use Nezaniel\Arboretum\Utility\TreeUtility;
-use TYPO3\Eel\ProtectedContextAwareInterface;
+use Neos\Eel\ProtectedContextAwareInterface;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Security\Context as SecurityContext;
 use Neos\Utility\Arrays;
