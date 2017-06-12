@@ -159,20 +159,20 @@
               include_in_all: true
               boost: 1
 
-'TYPO3.Neos.NodeTypes:Text':
+'Neos.NodeTypes:Text':
   properties:
     'text':
       search:
         fulltextExtractor: '${Indexing.extractHtmlTags(value)}'
 
-'TYPO3.Neos.NodeTypes:Headline':
+'Neos.NodeTypes:Headline':
   properties:
     'title':
       search:
         fulltextExtractor: '${Indexing.extractHtmlTags(value)}'
 
 
-'TYPO3.Neos.NodeTypes:TextWithImage':
+'Neos.NodeTypes:TextWithImage':
   properties:
     'text':
       search:
