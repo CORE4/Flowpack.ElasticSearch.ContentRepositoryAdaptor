@@ -1,6 +1,6 @@
 {
     "name": "flowpack/elasticsearch-contentrepositoryadaptor",
-    "type": "typo3-flow-package",
+    "type": "neos-package",
     "description": "This package provides functionality for using Elasticsearch on top of TYPO3CR.Search",
     "homepage": "http://flowpack.org/",
     "license": [
@@ -13,8 +13,8 @@
         "neos/content-repository-search": "*"
     },
     "autoload": {
-        "psr-0": {
-            "Flowpack\\ElasticSearch\\ContentRepositoryAdaptor": "Classes"
+        "psr-4": {
+            "Flowpack\\ElasticSearch\\ContentRepositoryAdaptor\\": "Classes"
         }
     },
     "extra": {
